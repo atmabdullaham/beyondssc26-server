@@ -244,6 +244,47 @@ app.post("/registration", async (req, res) => {
   }
 });
 
+// Search registration by exact phone number
+app.get("/registration/phone/:phone", async (req, res) => {
+  try {
+    const phone = req.params.phone;
+
+    if (!phone) {
+      return res.status(400).send({
+        success: false,
+        message: "Phone number is required",
+      });
+    }
+
+    if (!registrationsCollection) {
+      return res.status(503).send({
+        success: false,
+        message: "Database not initialized. Please try again later.",
+      });
+    }
+
+    const registration = await registrationsCollection.findOne({ phone_number: phone });
+
+    if (!registration) {
+      return res.status(404).send({
+        success: false,
+        message: "কোনো রেজিস্ট্রেশন পাওয়া যায়নি। অনুগ্রহ করে সঠিক নম্বর দিন অথবা রেজিস্ট্রেশন করুন।",
+      });
+    }
+
+    res.send({
+      success: true,
+      data: registration,
+    });
+  } catch (err) {
+    console.error("Search registration error:", err);
+    res.status(500).send({
+      success: false,
+      message: "Internal server error: " + err.message,
+    });
+  }
+});
+
 // Contact Message endpoint - accepts contact form submissions
 app.post("/contact", async (req, res) => {
   try {
