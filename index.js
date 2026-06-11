@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const admin = require('firebase-admin');
+const { connectToWhatsApp, sendWhatsAppMessage, getConnectionStatus } = require('./whatsappService');
 const app = express();
 require("dotenv").config()
 
@@ -37,6 +38,7 @@ if (fasdk) {
   }
 }
 
+
 if (!initialized) {
   const firebasePrivateKey = process.env.FIREBASE_PRIVATE_KEY
     ? process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n')
@@ -62,7 +64,7 @@ if (!initialized) {
 }
 
 const port = process.env.PORT || 5000;
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 
 app.use(cors({
   origin: [
@@ -152,6 +154,7 @@ async function run() {
     // Start the server AFTER database connection is successful
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`)
+      connectToWhatsApp();
     })
   } catch (err) {
     console.error("❌ MongoDB connection error:", err.message);
@@ -348,7 +351,16 @@ app.post("/contact", async (req, res) => {
 
 app.get("/", (req, res) => {
   res.send("The server is running")
+})
 
+// WhatsApp connection status check
+app.get("/whatsapp/status", (req, res) => {
+  res.send({
+    connected: getConnectionStatus(),
+    message: getConnectionStatus()
+      ? '✅ WhatsApp bot is online and ready to send messages.'
+      : '❌ WhatsApp bot is NOT connected. Please scan the QR code in the server terminal.'
+  });
 })
 
 // Admin verification middleware
@@ -536,42 +548,91 @@ app.get("/admin/registrations/:status", verifyFBToken, async (req, res) => {
   }
 });
 
-// Update registration status
 app.patch("/admin/registrations/:id/status", verifyFBToken, async (req, res) => {
   try {
     const email = req.decoded_email;
     const registrationId = req.params.id;
     const { status } = req.body;
 
+    // ১. ডাটাবেজ কানেকশন চেকিং
     if (!userCollection || !registrationsCollection) {
       return res.status(503).send({ message: "Database not ready" });
     }
 
+    // ২. অ্যাডমিন ভেরিফিকেশন
     const user = await userCollection.findOne({ email });
     if (!user || user.role !== 'admin') {
       return res.status(403).send({ message: "Admin access required" });
     }
 
-    // Validate status
+    // ৩. স্ট্যাটাস ভ্যালিডেশন
+    const targetStatus = status.toLowerCase();
     const validStatuses = ['pending', 'accepted', 'rejected'];
-    if (!validStatuses.includes(status.toLowerCase())) {
+    if (!validStatuses.includes(targetStatus)) {
       return res.status(400).send({ message: "Invalid status value" });
     }
 
-    const { ObjectId } = require('mongodb');
+    // ৪. শিক্ষার্থীর ডকুমেন্ট থেকে শুধুমাত্র 'whatsapp_number' ডাটা নিয়ে আসা
+    const registration = await registrationsCollection.findOne({ _id: new ObjectId(registrationId) });
+    if (!registration) {
+      return res.status(404).send({ message: "Registration record not found" });
+    }
+
+    // ৫. ডেটাবেজ স্ট্যাটাস স্টোরেজ আপডেট সম্পাদন
     const result = await registrationsCollection.updateOne(
       { _id: new ObjectId(registrationId) },
-      { $set: { registration_status: status.toLowerCase(), updated_at: new Date() } }
+      { $set: { registration_status: targetStatus, updated_at: new Date() } }
     );
 
     if (result.matchedCount === 0) {
-      return res.status(404).send({ message: "Registration not found" });
+      return res.status(404).send({ message: "Registration not found during update" });
     }
 
+    // 🔴 ট্রিগার: স্ট্যাটাস ACCEPTED হলে শুধুমাত্র 'whatsapp_number'-এ মেসেজ যাবে
+    if (targetStatus === 'accepted') {
+      const groupLink = "https://chat.whatsapp.com/ExampleInviteLinkCodeHere"; // আপনার অফিশিয়াল চ্যাট লিংক
+      const participantName = registration.name_en || registration.name_bn || 'Participant';
+      const message = `Assalamu Alaikum *${participantName}*,\n\n` +
+                      `Your manual transaction check is complete. Your registration status has been *Accepted*! ✅\n\n` +
+                      `*Verified TrxID:* ${registration.transaction_Id}\n\n` +
+                      `Please use the official link below to join our event communication hub:\n${groupLink}\n\n` +
+                      `_Please reply to this message with 'Got it' to confirm receipt._`;
+
+      try {
+        // এখানে সরাসরি এবং কড়াভাবে শুধুমাত্র whatsapp_number ব্যবহার করা হয়েছে
+        const targetWhatsapp = registration.whatsapp_number;
+        
+        // যদি ডাটাবেজে whatsapp_number ফিল্ডটি খালি থাকে বা না পাওয়া যায়
+        if (!targetWhatsapp) {
+          return res.send({
+            success: true,
+            message: "Status updated to accepted, but failed to send SMS because 'whatsapp_number' field is empty."
+          });
+        }
+
+        // Baileys মেসেজ সার্ভিস এক্সিকিউশন
+        await sendWhatsAppMessage(targetWhatsapp, message);
+        
+        return res.send({
+          success: true,
+          message: "Status marked accepted and Baileys SMS sent strictly to whatsapp_number."
+        });
+      } catch (whatsappErr) {
+        console.error("Baileys Message Failed:", whatsappErr);
+        // ডাটাবেজ আপডেট সফল হয়েছে কিন্তু বট অফলাইন থাকলে এই রেসপন্স যাবে
+        return res.status(200).send({ 
+          success: true, 
+          message: "Status updated to accepted, but WhatsApp failed to send. Ensure bot is connected." 
+        });
+      }
+    }
+
+    // 'pending' অথবা 'rejected' এর জন্য সাধারণ রেসপন্স
     res.send({
       success: true,
-      message: "Status updated successfully",
+      message: `Status updated to ${targetStatus} successfully`,
     });
+
   } catch (err) {
     console.error("Error updating status:", err);
     res.status(500).send({ message: "Error updating status", error: err.message });
@@ -593,7 +654,6 @@ app.delete("/admin/registrations/:id", verifyFBToken, async (req, res) => {
       return res.status(403).send({ message: "Admin access required" });
     }
 
-    const { ObjectId } = require('mongodb');
     const result = await registrationsCollection.deleteOne(
       { _id: new ObjectId(registrationId) }
     );

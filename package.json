@@ -1,5 +1,5 @@
 {
-  "name": "sbssbu-backend",
+  "name": "beyondssc26-shibirccn",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
@@ -12,10 +12,13 @@
   "type": "commonjs",
   "dependencies": {
     "@imagekit/nodejs": "^7.6.1",
+    "@whiskeysockets/baileys": "^7.0.0-rc13",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "firebase-admin": "^13.10.0",
-    "mongodb": "^7.2.0"
+    "mongodb": "^7.2.0",
+    "pino": "^10.3.1",
+    "qrcode-terminal": "^0.12.0"
   }
 }
