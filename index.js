@@ -56,7 +56,9 @@ if (!initialized) {
 }
 
 if (!initialized) {
-  // console.warn('Firebase Admin not initialized: missing credentials (FASDK or FIREBASE_*)');
+  console.warn('⚠️ Firebase Admin not initialized: missing credentials (FASDK or FIREBASE_*)');
+} else {
+  console.log('✅ Firebase Admin initialized successfully');
 }
 
 const port = process.env.PORT || 5000;
@@ -92,19 +94,22 @@ app.use(function (req, res, next) {
 const verifyFBToken = async (req, res, next) => {
   const token = req.headers.authorization
   if (!token) {
+    console.log('❌ verifyFBToken: No authorization header');
     return res.status(401).send({ message: "unauthorize access" })
   }
   try {
     const idToken = token.split(' ')[1]
     const decoded = await admin.auth().verifyIdToken(idToken)
-    // console.log(decoded)
+    console.log('✅ verifyFBToken: Token verified for', decoded.email);
     req.decoded_email = decoded.email
   } catch (err) {
+    console.log('❌ verifyFBToken: Token verification failed:', err.message);
     return res.status(401).send({ message: "unauthorized access" })
   }
 
   next()
 }
+
 
 
 
@@ -399,16 +404,20 @@ app.post("/users", async (req, res) => {
 app.get("/users/admin/:email", verifyFBToken, async (req, res) => {
   try {
     const email = req.params.email;
+    console.log('🔍 Admin check for email:', email);
 
     if (!userCollection) {
+      console.log('❌ userCollection not ready');
       return res.status(503).send({ message: "User collection is not ready yet" });
     }
 
     const user = await userCollection.findOne({ email });
     const isAdmin = user && user.role === 'admin';
+    console.log('🔍 User found:', user ? `role=${user.role}` : 'NOT FOUND', '| isAdmin:', isAdmin);
 
     res.send({ admin: isAdmin });
   } catch (err) {
+    console.error('❌ Admin check error:', err.message);
     res.status(500).send({ message: "Error checking admin status" });
   }
 });
@@ -439,27 +448,20 @@ app.get("/admin/statistics", verifyFBToken, async (req, res) => {
       registrationsForStats = allRegistrations.filter(r => r.registration_status === 'accepted');
     }
 
-    // Calculate group counts
-    const science = registrationsForStats.filter(r => r.group === 'science').length;
-    const commerce = registrationsForStats.filter(r => r.group === 'commerce').length;
-    const arts = registrationsForStats.filter(r => r.group === 'arts').length;
+    // Calculate group counts (case-insensitive & trimmed)
+    const science = registrationsForStats.filter(r => r.group && String(r.group).toLowerCase().trim() === 'science').length;
+    const commerce = registrationsForStats.filter(r => r.group && String(r.group).toLowerCase().trim() === 'commerce').length;
+    const arts = registrationsForStats.filter(r => r.group && String(r.group).toLowerCase().trim() === 'arts').length;
 
-    // Count by permanent_zilla
-    const permanentZillaCounts = {};
-    registrationsForStats.forEach(r => {
-      const zilla = r.permanent_zilla || 'unknown';
-      permanentZillaCounts[zilla] = (permanentZillaCounts[zilla] || 0) + 1;
-    });
-
-    // Count by tshirt_size
+    // Count by tshirt_size (normalize to uppercase and trim)
     const tshirtSizeCounts = {};
     registrationsForStats
       .filter(r => r.tshirt_size)
       .forEach(r => {
-        const size = r.tshirt_size || 'unknown';
+        const size = String(r.tshirt_size).toUpperCase().trim();
         tshirtSizeCounts[size] = (tshirtSizeCounts[size] || 0) + 1;
       });
-    tshirtSizeCounts.total = Object.values(tshirtSizeCounts).reduce((sum, val) => sum + val, 0);
+    const tshirtSizeTotal = Object.values(tshirtSizeCounts).reduce((sum, val) => sum + val, 0);
 
     // Status counts (always from all registrations)
     const pending = allRegistrations.filter(r => r.registration_status === 'pending').length;
@@ -472,8 +474,8 @@ app.get("/admin/statistics", verifyFBToken, async (req, res) => {
         science,
         commerce,
         arts,
-        permanentZillaCounts,
         tshirtSizeCounts,
+        tshirtSizeTotal,
         statusCounts: {
           pending,
           accepted,
