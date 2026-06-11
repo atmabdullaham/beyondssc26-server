@@ -101,7 +101,7 @@ const verifyFBToken = async (req, res, next) => {
     const idToken = token.split(' ')[1]
     const decoded = await admin.auth().verifyIdToken(idToken)
     console.log('✅ verifyFBToken: Token verified for', decoded.email);
-    req.decoded_email = decoded.email
+    req.decoded_email = decoded.email ? decoded.email.toLowerCase() : undefined
   } catch (err) {
     console.log('❌ verifyFBToken: Token verification failed:', err.message);
     return res.status(401).send({ message: "unauthorized access" })
@@ -353,7 +353,7 @@ app.get("/", (req, res) => {
 
 // Admin verification middleware
 const verifyAdmin = async (req, res, next) => {
-  const email = req.params.email;
+  const email = req.params.email?.toLowerCase();
   const token = req.headers.authorization;
 
   if (!token) {
@@ -364,7 +364,7 @@ const verifyAdmin = async (req, res, next) => {
     const idToken = token.split(' ')[1];
     const decoded = await admin.auth().verifyIdToken(idToken);
 
-    if (decoded.email !== email) {
+    if (decoded.email?.toLowerCase() !== email) {
       return res.status(403).send({ message: "Token email mismatch" });
     }
 
@@ -384,6 +384,9 @@ const verifyAdmin = async (req, res, next) => {
 
 app.post("/users", async (req, res) => {
   const user = req.body;
+  if (user.email) {
+    user.email = user.email.toLowerCase();
+  }
   user.role = 'user';
   user.createdAt = new Date()
 
@@ -403,7 +406,7 @@ app.post("/users", async (req, res) => {
 // Check if user is admin
 app.get("/users/admin/:email", verifyFBToken, async (req, res) => {
   try {
-    const email = req.params.email;
+    const email = req.params.email?.toLowerCase();
     console.log('🔍 Admin check for email:', email);
 
     if (!userCollection) {
