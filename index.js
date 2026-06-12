@@ -71,14 +71,12 @@ app.use(cors({
     'http://localhost:5173',
     'http://localhost:5174',
     'https://beyondssc26-shibirccn.web.app',
-    '' // ✅ add this line
   ],
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
-
-
-
 
 // allow cross-origin requests
 app.use(function (req, res, next) {
@@ -588,20 +586,20 @@ app.patch("/admin/registrations/:id/status", verifyFBToken, async (req, res) => 
       return res.status(404).send({ message: "Registration not found during update" });
     }
 
-    // 🔴 ট্রিগার: স্ট্যাটাস ACCEPTED হলে শুধুমাত্র 'whatsapp_number'-এ মেসেজ যাবে
+    // ট্রিগার: স্ট্যাটাস ACCEPTED হলে শুধুমাত্র 'whatsapp_number'-এ মেসেজ যাবে
     if (targetStatus === 'accepted') {
-      const groupLink = "https://chat.whatsapp.com/ExampleInviteLinkCodeHere"; // আপনার অফিশিয়াল চ্যাট লিংক
+      const groupLink = "https://chat.whatsapp.com/KCgugKmDqoWIZnugxFWMHs?s=cl&p=a&mlu=4"; // লিংক
       const participantName = registration.name_en || registration.name_bn || 'Participant';
       const message = `Assalamu Alaikum *${participantName}*,\n\n` +
-                      `Your manual transaction check is complete. Your registration status has been *Accepted*! ✅\n\n` +
-                      `*Verified TrxID:* ${registration.transaction_Id}\n\n` +
-                      `Please use the official link below to join our event communication hub:\n${groupLink}\n\n` +
-                      `_Please reply to this message with 'Got it' to confirm receipt._`;
+        `Your manual transaction check is complete. Your registration status has been *Accepted*! ✅\n\n` +
+        +
+        `Please use the official link below to join our event communication hub:\n${groupLink}\n\n` +
+        `_Please reply to this message with 'Got it' to confirm receipt._`;
 
       try {
         // এখানে সরাসরি এবং কড়াভাবে শুধুমাত্র whatsapp_number ব্যবহার করা হয়েছে
         const targetWhatsapp = registration.whatsapp_number;
-        
+
         // যদি ডাটাবেজে whatsapp_number ফিল্ডটি খালি থাকে বা না পাওয়া যায়
         if (!targetWhatsapp) {
           return res.send({
@@ -612,7 +610,7 @@ app.patch("/admin/registrations/:id/status", verifyFBToken, async (req, res) => 
 
         // Baileys মেসেজ সার্ভিস এক্সিকিউশন
         await sendWhatsAppMessage(targetWhatsapp, message);
-        
+
         return res.send({
           success: true,
           message: "Status marked accepted and Baileys SMS sent strictly to whatsapp_number."
@@ -620,9 +618,9 @@ app.patch("/admin/registrations/:id/status", verifyFBToken, async (req, res) => 
       } catch (whatsappErr) {
         console.error("Baileys Message Failed:", whatsappErr);
         // ডাটাবেজ আপডেট সফল হয়েছে কিন্তু বট অফলাইন থাকলে এই রেসপন্স যাবে
-        return res.status(200).send({ 
-          success: true, 
-          message: "Status updated to accepted, but WhatsApp failed to send. Ensure bot is connected." 
+        return res.status(200).send({
+          success: true,
+          message: "Status updated to accepted, but WhatsApp failed to send. Ensure bot is connected."
         });
       }
     }
