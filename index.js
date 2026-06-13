@@ -269,7 +269,10 @@ app.get("/registration/phone/:phone", async (req, res) => {
       });
     }
 
-    const registration = await registrationsCollection.findOne({ phone_number: phone });
+    const registration = await registrationsCollection.findOne(
+      { phone_number: phone },
+      { projection: { name_en: 1, institution_name: 1, registration_status: 1, _id: 0 } }
+    );
 
     if (!registration) {
       return res.status(404).send({
@@ -280,7 +283,11 @@ app.get("/registration/phone/:phone", async (req, res) => {
 
     res.send({
       success: true,
-      data: registration,
+      data: {
+        name_en: registration.name_en,
+        institution_name: registration.institution_name,
+        registration_status: registration.registration_status,
+      },
     });
   } catch (err) {
     console.error("Search registration error:", err);
