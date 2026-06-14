@@ -595,13 +595,23 @@ app.patch("/admin/registrations/:id/status", verifyFBToken, async (req, res) => 
 
     // ট্রিগার: স্ট্যাটাস ACCEPTED হলে শুধুমাত্র 'whatsapp_number'-এ মেসেজ যাবে
     if (targetStatus === 'accepted') {
-      const groupLink = "https://chat.whatsapp.com/KCgugKmDqoWIZnugxFWMHs?s=cl&p=a&mlu=4"; // লিংক
+      const groupLink = "https://chat.whatsapp.com/KCgugKmDqoWIZnugxFWMHs?s=cl&p=a&mlu=4";
       const participantName = registration.name_en || registration.name_bn || 'Participant';
-      const message = `Assalamu Alaikum *${participantName}*,\n\n` +
-        `Your manual transaction check is complete. Your registration status has been *Accepted*! ✅\n\n` +
-        +
-        `Please use the official link below to join our event communication hub:\n${groupLink}\n\n` +
-        `_Please reply to this message with 'Got it' to confirm receipt._`;
+
+      const message = `Assalamu Alaikum *${participantName}*, 🌟
+
+Welcome to *The Next Chapter - Beyond SSC'26*! 
+
+We are thrilled to inform you that your registration is officially *ACCEPTED*! ✅
+
+Get ready for an amazing day of fun, brotherhood and future career guidelines. To stay updated and connect with your batchmates, please join our official WhatsApp Community Hub below:
+🔗 ${groupLink}
+
+_Organized by: Bangladesh Islami Chhatrashibir, Chattogram City North._
+
+📌 Action Required: Please reply to this message with 'Got it' to confirm you have received the link. See you at Foy's Lake!`;
+
+      // Baileys মেসেজ পাঠানোর কোড...
 
       try {
         // এখানে সরাসরি এবং কড়াভাবে শুধুমাত্র whatsapp_number ব্যবহার করা হয়েছে
